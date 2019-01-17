@@ -2,8 +2,8 @@ package io.ktor.client.engine.cio
 
 import io.ktor.client.engine.*
 import io.ktor.network.tls.*
-import io.ktor.util.*
 import java.security.*
+import java.security.cert.*
 import javax.net.ssl.*
 
 private val DEFAULT_RANDOM: String =
@@ -20,7 +20,7 @@ class CIOEngineConfig : HttpClientEngineConfig() {
     /**
      * [https] settings.
      */
-    val https: HttpsConfig = HttpsConfig()
+    val https: TLSConfigBuilder = TLSConfigBuilder()
 
     /**
      * Maximum allowed connections count.
@@ -30,7 +30,7 @@ class CIOEngineConfig : HttpClientEngineConfig() {
     /**
      * [https] settings.
      */
-    fun https(block: HttpsConfig.() -> Unit): HttpsConfig = https.apply(block)
+    fun https(block: TLSConfigBuilder.() -> Unit): TLSConfigBuilder = https.apply(block)
 }
 
 /**
@@ -61,26 +61,4 @@ class EndpointConfig {
      * Maximum number of connection attempts.
      */
     var connectRetryAttempts: Int = 5
-}
-
-/**
- * Https settings.
- */
-class HttpsConfig {
-    /**
-     * Custom [X509TrustManager] to verify server authority.
-     *
-     * Use system by default.
-     */
-    var trustManager: X509TrustManager? = null
-
-    /**
-     * Random nonce generation algorithm.
-     */
-    var randomAlgorithm: String = DEFAULT_RANDOM
-
-    /**
-     * List of allowed [CipherSuite]s.
-     */
-    var cipherSuites: List<CipherSuite> = CIOCipherSuites.SupportedSuites
 }

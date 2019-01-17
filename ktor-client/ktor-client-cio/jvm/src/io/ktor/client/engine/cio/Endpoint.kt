@@ -13,6 +13,7 @@ import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.io.*
 import java.io.*
 import java.net.*
+import java.security.*
 import java.util.concurrent.atomic.*
 import kotlin.coroutines.*
 
@@ -179,13 +180,13 @@ internal class Endpoint(
 
                 try {
                     with(config.https) {
-                        return@connect connection.tls(
-                            coroutineContext,
-                            trustManager,
-                            randomAlgorithm,
-                            cipherSuites,
-                            address.hostName
-                        )
+                        return@connect connection.tls(coroutineContext) {
+                            trustManager = this@with.trustManager
+                            random = this@with.random
+                            cipherSuites = this@with.cipherSuites
+                            serverName = this@with.serverName ?: address.hostName
+                            certificates += this@with.certificates
+                        }
                     }
                 } catch (t: Throwable) {
                     connectionFactory.release()
