@@ -7,6 +7,7 @@ import io.ktor.client.request.*
 import io.ktor.client.response.*
 import io.ktor.http.*
 import io.ktor.util.*
+import io.ktor.util.pipeline.*
 import kotlinx.atomicfu.*
 import kotlinx.coroutines.*
 import kotlinx.io.core.*
@@ -60,6 +61,7 @@ class HttpClient(
     private val closed = atomic(false)
 
     override val coroutineContext: CoroutineContext get() = engine.coroutineContext
+
     /**
      * Pipeline used for processing all the requests sent by this client.
      */
