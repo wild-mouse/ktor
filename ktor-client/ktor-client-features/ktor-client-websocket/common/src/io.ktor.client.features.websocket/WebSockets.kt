@@ -13,21 +13,25 @@ import io.ktor.util.pipeline.*
 /**
  * Client WebSocket feature.
  *
+ * @property pingInterval - interval between [FrameType.PING] messages.
  * @property maxFrameSize - max size of single websocket frame.
  */
 @KtorExperimentalAPI
 @UseExperimental(WebSocketInternalAPI::class)
 class WebSockets(
     val pingInterval: Long = -1L,
-    val maxFrameSize: Long = Int.MAX_VALUE.toLong(),
-    val engine: WebSocketEngine = findWebSocketEngine(),
-    private val client: HttpClient
+    val maxFrameSize: Long = Int.MAX_VALUE.toLong()
 ) {
-    private suspend fun execute(content: HttpRequestData): WebSocketCall {
-        val result = WebSocketCall(client)
-        val request = DefaultHttpRequest()
+    internal val engine: WebSocketEngine by lazy { findWebSocketEngine() }
 
-        result.response = engine.execute(request)
+    private suspend fun execute(client: HttpClient, content: HttpRequestData): WebSocketCall {
+        val clientEngine = client.engine
+        val currentEngine = if (clientEngine is WebSocketEngine) clientEngine else engine
+
+        val result = WebSocketCall(client)
+        val request = DefaultHttpRequest(result, content)
+
+        result.response = currentEngine.execute(request)
         return result
     }
 
@@ -44,9 +48,7 @@ class WebSockets(
             }
 
             val WebSocket = PipelinePhase("WebSocket")
-
             scope.sendPipeline.insertPhaseBefore(HttpSendPipeline.Engine, WebSocket)
-
             scope.sendPipeline.intercept(WebSocket) { content ->
                 if (content !is WebSocketContent) return@intercept
                 finish()
@@ -54,7 +56,7 @@ class WebSockets(
                 context.body = content
                 val requestData = context.build()
 
-                proceedWith(feature.execute(requestData))
+                proceedWith(feature.execute(scope, requestData))
             }
 
             scope.responsePipeline.intercept(HttpResponsePipeline.Transform) { (info, call) ->

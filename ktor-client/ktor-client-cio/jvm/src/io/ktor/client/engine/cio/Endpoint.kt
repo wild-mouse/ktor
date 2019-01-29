@@ -2,6 +2,7 @@ package io.ktor.client.engine.cio
 
 import io.ktor.client.features.websocket.*
 import io.ktor.client.request.*
+import io.ktor.client.response.*
 import io.ktor.http.*
 import io.ktor.http.cio.*
 import io.ktor.http.cio.websocket.*
@@ -10,12 +11,12 @@ import io.ktor.network.sockets.Socket
 import io.ktor.network.tls.*
 import io.ktor.util.*
 import io.ktor.util.date.*
+import kotlinx.atomicfu.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.io.*
 import java.io.*
 import java.net.*
-import java.util.concurrent.atomic.*
 import kotlin.coroutines.*
 
 internal class Endpoint(
@@ -27,14 +28,13 @@ internal class Endpoint(
     override val coroutineContext: CoroutineContext,
     private val onDone: () -> Unit
 ) : CoroutineScope, Closeable {
+    private val address = InetSocketAddress(host, port)
+
+    private val connections: AtomicInt = atomic(0)
     private val tasks: Channel<RequestTask> = Channel(Channel.UNLIMITED)
     private val deliveryPoint: Channel<RequestTask> = Channel()
-    private val maxEndpointIdleTime = 2 * config.endpoint.connectTimeout
 
-    @Volatile
-    private var connectionsHolder: Int = 0
-
-    private val address = InetSocketAddress(host, port)
+    private val maxEndpointIdleTime: Long = 2 * config.endpoint.connectTimeout
 
     private val postman = launch(start = CoroutineStart.LAZY) {
         try {
@@ -66,8 +66,8 @@ internal class Endpoint(
         }
     }
 
-    suspend fun execute(request: DefaultHttpRequest, callContext: CoroutineContext): CIOHttpResponse {
-        val result = CompletableDeferred<CIOHttpResponse>(parent = callContext[Job])
+    suspend fun execute(request: HttpRequest, callContext: CoroutineContext): HttpResponse {
+        val result = CompletableDeferred<HttpResponse>(parent = callContext[Job])
         val task = RequestTask(request, result, callContext)
         tasks.offer(task)
         return result.await()
@@ -76,7 +76,7 @@ internal class Endpoint(
     private suspend fun makePipelineRequest(task: RequestTask) {
         if (deliveryPoint.offer(task)) return
 
-        val connections = Connections.get(this@Endpoint)
+        val connections = connections.value
         if (connections < config.endpoint.maxConnectionsPerRoute) {
             try {
                 createPipeline()
@@ -118,15 +118,12 @@ internal class Endpoint(
             val connectionType = ConnectionOptions.parse(rawResponse.headers[HttpHeaders.Connection])
             val headers = CIOHeaders(rawResponse.headers)
 
-            val body = when {
-                status == HttpStatusCode.SwitchingProtocols.value -> {
-                    val content = request.content as? ClientUpgradeContent
-                        ?: error("Invalid content type: UpgradeContent required")
+            if (status == HttpStatusCode.SwitchingProtocols.value) {
+                val session = RawWebSocket(input, output, coroutineContext = callContext)
+                response.complete(WebSocketResponse(callContext, requestTime, session))
+            }
 
-                    content.verify(headers)
-                    handleWebsocketUpgrade(request, input, output, callContext)
-                    ByteReadChannel.Empty
-                }
+            val body = when {
                 request.method == HttpMethod.Head -> {
                     closeConnection()
                     ByteReadChannel.Empty
@@ -152,14 +149,6 @@ internal class Endpoint(
         }
     }
 
-    private fun handleWebsocketUpgrade(
-        request: HttpRequest,
-        input: ByteReadChannel, output: ByteWriteChannel, callContext: CoroutineContext
-    ) {
-        val session = RawWebSocket(input, output, coroutineContext = callContext)
-        request.attributes.put(WebSockets.sessionKey, session)
-    }
-
     private suspend fun createPipeline() {
         val socket = connect()
 
@@ -177,7 +166,7 @@ internal class Endpoint(
         val retryAttempts = config.endpoint.connectRetryAttempts
         val connectTimeout = config.endpoint.connectTimeout
 
-        Connections.incrementAndGet(this)
+        connections.incrementAndGet()
 
         try {
             repeat(retryAttempts) {
@@ -196,23 +185,28 @@ internal class Endpoint(
                             address.hostName
                         )
                     }
-                } catch (t: Throwable) {
+                } catch (cause: Throwable) {
+                    try {
+                        connection.close()
+                    } catch (_: Throwable) {
+                    }
+
                     connectionFactory.release()
-                    throw t
+                    throw cause
                 }
             }
         } catch (cause: Throwable) {
-            Connections.decrementAndGet(this)
+            connections.decrementAndGet()
             throw cause
         }
 
-        Connections.decrementAndGet(this)
+        connections.decrementAndGet()
         throw ConnectException()
     }
 
     private fun releaseConnection() {
         connectionFactory.release()
-        Connections.decrementAndGet(this)
+        connections.decrementAndGet()
     }
 
     override fun close() {
@@ -222,12 +216,8 @@ internal class Endpoint(
     init {
         postman.start()
     }
-
-    companion object {
-        private val Connections = AtomicIntegerFieldUpdater
-            .newUpdater(Endpoint::class.java, Endpoint::connectionsHolder.name)
-    }
 }
 
 @KtorExperimentalAPI
+@Suppress("KDocMissingDocumentation")
 class ConnectException : Exception("Connect timed out or retry attempts exceeded")

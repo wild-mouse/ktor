@@ -15,7 +15,10 @@ import kotlinx.coroutines.io.jvm.javaio.*
 import okhttp3.*
 import kotlin.coroutines.*
 
-class OkHttpEngine(override val config: OkHttpConfig) : HttpClientJvmEngine("ktor-okhttp") {
+internal class OkHttpEngine(
+    override val config: OkHttpConfig
+) : HttpClientJvmEngine("ktor-okhttp"), WebSocketEngine {
+
     private val engine = OkHttpClient.Builder()
         .apply(config.config)
         .build()!!
@@ -23,33 +26,28 @@ class OkHttpEngine(override val config: OkHttpConfig) : HttpClientJvmEngine("kto
     override suspend fun execute(call: HttpClientCall, data: HttpRequestData): HttpEngineCall {
         val request = DefaultHttpRequest(call, data)
         val callContext = createCallContext()
-
-        val builder = Request.Builder()
-
-        with(builder) {
-            url(request.url.toString())
-
-            mergeHeaders(request.headers, request.content) { key, value ->
-                addHeader(key, value)
-            }
-
-            method(request.method.value, request.content.convertToOkHttpBody(callContext))
-        }
-
-        val engineRequest = builder.build()!!
-
-        val response = if (request.content !is ClientUpgradeContent) {
-            executeHttpRequest(engineRequest, callContext, call)
-
-        } else {
-            if (request.url.protocol.isWebsocket()) {
-                startWebsocketSession(engineRequest, callContext, call, request)
-            } else {
-                throw UnsupportedUpgradeProtocolException(request.url)
-            }
-        }
+        val engineRequest = request.convertToOkHttpRequest(callContext)
+        val response = executeHttpRequest(engineRequest, callContext, call)
 
         return HttpEngineCall(request, response)
+    }
+
+    override suspend fun execute(request: HttpRequest): WebSocketResponse {
+        check(request.url.protocol.isWebsocket())
+
+        val callContext = createCallContext()
+        val pingInterval = engine.pingIntervalMillis().toLong()
+        val requestTime = GMTDate()
+        val engineRequest = request.convertToOkHttpRequest(callContext)
+
+        val session = OkHttpWebsocketSession(
+            engine, engineRequest,
+            callContext,
+            pingInterval, pingInterval,
+            masking = true, maxFrameSize = Long.MAX_VALUE
+        )
+
+        return WebSocketResponse(callContext, requestTime, session)
     }
 
     private suspend fun executeHttpRequest(
@@ -72,28 +70,23 @@ class OkHttpEngine(override val config: OkHttpConfig) : HttpClientJvmEngine("kto
 
         return OkHttpResponse(response, call, requestTime, responseContent, callContext)
     }
-
-    private fun startWebsocketSession(
-        engineRequest: Request,
-        callContext: CoroutineContext,
-        call: HttpClientCall,
-        request: DefaultHttpRequest
-    ): HttpResponse {
-        val pingInterval = engine.pingIntervalMillis().toLong()
-        val requestTime = GMTDate()
-
-        val session = OkHttpWebsocketSession(
-            engine, engineRequest,
-            callContext,
-            pingInterval, pingInterval,
-            masking = true, maxFrameSize = Long.MAX_VALUE
-        )
-
-        request.attributes.put(WebSockets.sessionKey, session)
-        return UpgradeHttpResponse(call, requestTime, callContext)
-    }
 }
 
+private fun HttpRequest.convertToOkHttpRequest(callContext: CoroutineContext): Request {
+    val builder = Request.Builder()
+
+    with(builder) {
+        url(url.toString())
+
+        mergeHeaders(headers, content) { key, value ->
+            addHeader(key, value)
+        }
+
+        method(method.value, content.convertToOkHttpBody(callContext))
+    }
+
+    return builder.build()!!
+}
 
 internal fun OutgoingContent.convertToOkHttpBody(callContext: CoroutineContext): RequestBody? = when (this) {
     is OutgoingContent.ByteArrayContent -> RequestBody.create(null, bytes())

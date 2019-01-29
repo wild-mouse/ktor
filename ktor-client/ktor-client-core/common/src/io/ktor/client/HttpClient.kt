@@ -7,7 +7,6 @@ import io.ktor.client.request.*
 import io.ktor.client.response.*
 import io.ktor.http.*
 import io.ktor.util.*
-import io.ktor.util.pipeline.*
 import kotlinx.atomicfu.*
 import kotlinx.coroutines.*
 import kotlinx.io.core.*
@@ -53,9 +52,10 @@ fun HttpClient(
  * Asynchronous client to perform HTTP requests.
  *
  * This is a generic implementation that uses a specific engine [HttpClientEngine].
+ * @property engine: [HttpClientEngine] for executing requests.
  */
 class HttpClient(
-    private val engine: HttpClientEngine,
+    @InternalAPI val engine: HttpClientEngine,
     private val userConfig: HttpClientConfig<out HttpClientEngineConfig> = HttpClientConfig()
 ) : CoroutineScope, Closeable {
     private val closed = atomic(false)
