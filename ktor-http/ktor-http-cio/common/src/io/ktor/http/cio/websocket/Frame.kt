@@ -108,4 +108,3 @@ internal object NonDisposableHandle : DisposableHandle {
     override fun dispose() {}
     override fun toString(): String = "NonDisposableHandle"
 }
-

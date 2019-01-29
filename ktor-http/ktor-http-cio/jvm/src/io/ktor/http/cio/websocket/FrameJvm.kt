@@ -16,7 +16,7 @@ import java.nio.*
  * @property data - a frame content or fragment content
  * @property disposableHandle could be invoked when the frame is processed
  */
-actual sealed class Frame actual constructor(
+actual sealed class Frame private actual constructor(
     actual val fin: Boolean,
     actual val frameType: FrameType,
     actual val data: ByteArray,
