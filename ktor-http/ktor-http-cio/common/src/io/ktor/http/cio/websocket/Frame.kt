@@ -1,5 +1,5 @@
-@file:kotlin.jvm.JvmMultifileClass
-@file:kotlin.jvm.JvmName("FrameKt")
+//@file:kotlin.jvm.JvmMultifileClass
+//@file:kotlin.jvm.JvmName("FrameKt")
 
 package io.ktor.http.cio.websocket
 

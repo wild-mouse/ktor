@@ -13,9 +13,12 @@ internal class DefaultJsWebSocketEngine() : WebSocketEngine {
 
     override suspend fun execute(request: HttpRequest): WebSocketResponse {
         val requestTime = GMTDate()
+        val callContext = CompletableDeferred<Unit>() + coroutineContext
+
         val socket = WebSocket(request.url.toString()).apply { await() }
-        val session = JsWebSocketSession(socket)
-        return WebSocketResponse(coroutineContext, requestTime, session)
+        val session = JsWebSocketSession(callContext, socket)
+
+        return WebSocketResponse(callContext, requestTime, session)
     }
 
     private suspend fun WebSocket.await(): Unit = suspendCancellableCoroutine { continuation ->

@@ -33,7 +33,7 @@ internal class CIOEngine(override val config: CIOEngineConfig) : HttpClientJvmEn
 
     override suspend fun execute(request: HttpRequest): WebSocketResponse {
         val response = executeRequest(request)
-        return TODO()
+        return response as WebSocketResponse
     }
 
     private suspend fun executeRequest(request: HttpRequest): HttpResponse {

@@ -5,7 +5,7 @@ package io.ktor.http.cio.websocket
  * @property controlFrame if this is control frame type
  * @property opcode - frame type id that is used to transport it
  */
-enum class FrameType (val controlFrame: Boolean, val opcode: Int) {
+enum class FrameType(val controlFrame: Boolean, val opcode: Int) {
     /**
      * Regular application level text frame
      */

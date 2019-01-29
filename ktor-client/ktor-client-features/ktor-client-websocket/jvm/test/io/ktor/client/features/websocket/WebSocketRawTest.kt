@@ -10,7 +10,6 @@ import io.ktor.server.netty.*
 import io.ktor.websocket.*
 import kotlin.test.*
 
-
 class WebSocketRawTest : TestWithKtor() {
     override val server: ApplicationEngine = embeddedServer(Netty, serverPort) {
         install(io.ktor.websocket.WebSockets)

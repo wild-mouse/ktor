@@ -45,40 +45,6 @@ class WebSocketTest : TestWithKtor() {
         }
     }
 
-    @Test
-    fun testRemotePingPong(): Unit = clientsTest {
-        val remote = "echo.websocket.org"
-
-        config {
-            install(WebSockets)
-        }
-
-        test { client ->
-            client.ws(host = remote) {
-                repeat(10) {
-                    ping(it.toString())
-                }
-            }
-        }
-    }
-
-    @Test
-    fun testSecureRemotePingPong(): Unit = clientsTest {
-        val remote = "echo.websocket.org"
-
-        config {
-            install(WebSockets)
-        }
-
-        test { client ->
-            client.wss(host = remote) {
-                repeat(10) {
-                    ping(it.toString())
-                }
-            }
-        }
-    }
-
     private suspend fun WebSocketSession.ping(salt: String) {
         outgoing.send(Frame.Text("text: $salt"))
         val frame = incoming.receive()

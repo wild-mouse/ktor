@@ -40,13 +40,7 @@ internal class OkHttpEngine(
         val requestTime = GMTDate()
         val engineRequest = request.convertToOkHttpRequest(callContext)
 
-        val session = OkHttpWebsocketSession(
-            engine, engineRequest,
-            callContext,
-            pingInterval, pingInterval,
-            masking = true, maxFrameSize = Long.MAX_VALUE
-        )
-
+        val session = OkHttpWebsocketSession(engine, engineRequest, callContext)
         return WebSocketResponse(callContext, requestTime, session)
     }
 

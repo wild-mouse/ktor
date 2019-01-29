@@ -3,8 +3,10 @@ description = 'Common tests for client'
 apply plugin: "kotlinx-serialization"
 
 kotlin.sourceSets {
-    jvmMain.dependencies {
+    commonMain.dependencies {
         api project(':ktor-client:ktor-client-core')
+    }
+    jvmMain.dependencies {
         api project(':ktor-server:ktor-server-jetty')
         api project(':ktor-server:ktor-server-netty')
         api group: 'ch.qos.logback', name: 'logback-classic', version: logback_version

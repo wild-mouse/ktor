@@ -4,64 +4,83 @@ import io.ktor.http.cio.websocket.*
 import io.ktor.util.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
-import kotlinx.io.js.*
+import kotlinx.io.core.*
+import org.khronos.webgl.*
 import org.w3c.dom.*
-import org.w3c.dom.events.*
 import kotlin.coroutines.*
 
 internal class JsWebSocketSession(
-    websocket: WebSocket
+    override val coroutineContext: CoroutineContext,
+    private val websocket: WebSocket
 ) : DefaultWebSocketSession {
-    override val coroutineContext: CoroutineContext = Dispatchers.Default
-
+    private val _closeReason: CompletableDeferred<CloseReason> = CompletableDeferred()
     private val _incoming: Channel<Frame> = Channel(Channel.UNLIMITED)
     private val _outgoing: Channel<Frame> = Channel(Channel.UNLIMITED)
 
     override val incoming: ReceiveChannel<Frame> = _incoming
     override val outgoing: SendChannel<Frame> = _outgoing
 
+    override val closeReason: Deferred<CloseReason?> = _closeReason
+
     init {
+        websocket.binaryType = BinaryType.ARRAYBUFFER
+
         websocket.onmessage = { event ->
-            val frame: Frame = when (event.type) {
-                "BINARY" -> Frame.Binary(false, event.data as ByteArray)
-                "TEXT" -> Frame.Text(event.data as String)
-                else -> error("")
-            }
-            event.data
             launch {
+                val frame: Frame = when (event.type) {
+                    "BINARY" -> Frame.Binary(false, event.data as ByteArray)
+                    "TEXT" -> Frame.Text(event.data as String)
+                    else -> error("Unknown frame type: ${event.type}")
+                }
                 _incoming.offer(frame)
             }
         }
 
-        websocket.onerror = { _incoming.close(WebSocketException("$it")) }
+        websocket.onerror = {
+            _incoming.close(WebSocketException("$it"))
+            _outgoing.cancel()
+        }
 
         websocket.onclose = {
             launch {
                 val event = it as CloseEvent
                 _incoming.send(Frame.Close(CloseReason(event.code, event.reason)))
                 _incoming.close()
+
+                _outgoing.cancel()
             }
         }
 
         launch {
             _outgoing.consumeEach {
+                when (it.frameType) {
+                    FrameType.TEXT -> {
+                        val text = it.data
+                        websocket.send(String(text))
+                    }
+                    FrameType.BINARY -> {
+                        websocket.send(it.data as ArrayBuffer)
+                    }
+                    FrameType.CLOSE -> {
+                        val data = buildPacket { it.data }
+                        websocket.close(data.readShort(), data.readText())
+                    }
+                }
             }
         }
     }
 
-    override val closeReason: Deferred<CloseReason?>
-        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
-
     override suspend fun flush() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     override fun terminate() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        _incoming.cancel()
+        _outgoing.cancel()
+        websocket.close()
     }
 
     @KtorExperimentalAPI
     override suspend fun close(cause: Throwable?) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        _incoming.send(Frame.Close())
     }
 }
