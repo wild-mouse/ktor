@@ -119,7 +119,7 @@ internal class Endpoint(
             val headers = CIOHeaders(rawResponse.headers)
 
             if (status == HttpStatusCode.SwitchingProtocols.value) {
-                val session = RawWebSocket(input, output, coroutineContext = callContext)
+                val session = RawWebSocket(input, output, masking = true, coroutineContext = callContext)
                 response.complete(WebSocketResponse(callContext, requestTime, session))
             }
 

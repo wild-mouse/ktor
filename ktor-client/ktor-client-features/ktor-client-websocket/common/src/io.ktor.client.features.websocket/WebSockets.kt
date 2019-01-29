@@ -31,7 +31,11 @@ class WebSockets(
         val result = WebSocketCall(client)
         val request = DefaultHttpRequest(result, content)
 
-        result.response = currentEngine.execute(request)
+        val response = currentEngine.execute(request).apply {
+            call = result
+        }
+
+        result.response = response
         return result
     }
 
@@ -59,11 +63,9 @@ class WebSockets(
                 proceedWith(feature.execute(scope, requestData))
             }
 
-            scope.responsePipeline.intercept(HttpResponsePipeline.Transform) { (info, call) ->
-                if (call !is WebSocketCall) return@intercept
+            scope.responsePipeline.intercept(HttpResponsePipeline.Transform) { (info, response) ->
+                if (response !is WebSocketResponse) return@intercept
                 with(feature) {
-                    val response = call.response as? WebSocketResponse ?: return@intercept
-
                     val session = response.session
                     val expected = info.type
 

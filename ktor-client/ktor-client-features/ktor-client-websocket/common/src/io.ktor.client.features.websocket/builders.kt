@@ -35,10 +35,12 @@ suspend fun HttpClient.webSocket(
 
     try {
         session.block()
+        println("BLOCK DONE")
     } catch (cause: Throwable) {
         session.close(cause)
+        throw cause
     } finally {
-        session.close()
+        session.close(null)
     }
 }
 

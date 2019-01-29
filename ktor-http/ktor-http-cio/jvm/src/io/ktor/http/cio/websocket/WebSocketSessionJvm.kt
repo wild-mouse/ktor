@@ -44,5 +44,6 @@ actual interface WebSocketSession : CoroutineScope {
     /**
      * Close session with the specified [cause] or with no reason if `null`
      */
-    actual suspend fun close(cause: Throwable?)
+    @Suppress("ACTUAL_FUNCTION_WITH_DEFAULT_ARGUMENTS")
+    actual suspend fun close(cause: Throwable? = null)
 }

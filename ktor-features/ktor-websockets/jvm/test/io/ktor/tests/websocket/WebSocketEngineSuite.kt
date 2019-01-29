@@ -107,8 +107,10 @@ abstract class WebSocketEngineSuite<TEngine : ApplicationEngine, TConfiguration 
 
                 try {
                     incoming.consumeEach {
+                        println("receive $it")
                     }
                 } catch (cancelled: CancellationException) {
+                    println("$cancelled: here")
                 } catch (t: Throwable) {
                     errors.addError(t)
                     println("$t is here")
@@ -563,6 +565,8 @@ abstract class WebSocketEngineSuite<TEngine : ApplicationEngine, TConfiguration 
         val frameType =
             FrameType[opcodeAndFin and 0x0f] ?: throw IllegalStateException("Wrong opcode ${opcodeAndFin and 0x0f}")
         val fin = (opcodeAndFin and 0x80) != 0
+
+        println("Frame type: $frameType; fin: $fin")
 
         val len1 = lenAndMask and 0x7f
         val mask = (lenAndMask and 0x80) != 0

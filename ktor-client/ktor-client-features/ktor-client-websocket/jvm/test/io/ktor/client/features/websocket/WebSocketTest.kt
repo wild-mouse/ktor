@@ -17,7 +17,9 @@ class WebSocketTest : TestWithKtor() {
         install(io.ktor.websocket.WebSockets)
         routing {
             webSocket("/ws") {
+                println("CONNECTED")
                 for (frame in incoming) {
+                    println("Received $frame")
                     when (frame) {
                         is Frame.Text -> send(frame)
                         is Frame.Binary -> send(frame)
@@ -42,10 +44,12 @@ class WebSocketTest : TestWithKtor() {
                     ping(it.toString())
                 }
             }
+            println("EXIT")
         }
     }
 
     private suspend fun WebSocketSession.ping(salt: String) {
+        println("PING")
         outgoing.send(Frame.Text("text: $salt"))
         val frame = incoming.receive()
         assert(frame is Frame.Text)
@@ -53,11 +57,14 @@ class WebSocketTest : TestWithKtor() {
 
         val data = "text: $salt".toByteArray()
         outgoing.send(Frame.Binary(true, ByteBuffer.wrap(data)))
+        println("Sent $data")
+
         val binaryFrame = incoming.receive()
         assert(binaryFrame is Frame.Binary)
 
         val buffer = (binaryFrame as Frame.Binary).buffer
         val received = buffer.moveToByteArray()
+        println("Received $received")
         assertEquals(data.contentToString(), received.contentToString())
     }
 }

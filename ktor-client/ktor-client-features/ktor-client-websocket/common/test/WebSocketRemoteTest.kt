@@ -45,7 +45,7 @@ class WebSocketRemoteTest {
         outgoing.send(Frame.Text("text: $salt"))
         val frame = incoming.receive()
         check(frame is Frame.Text)
-        assertEquals("text: $salt", (frame as Frame.Text).readText())
+        assertEquals("text: $salt", frame.readText())
 
         val data = "text: $salt".toByteArray()
         outgoing.send(Frame.Binary(true, data))
